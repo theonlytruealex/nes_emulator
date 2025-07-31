@@ -79,11 +79,25 @@ impl CPU {
         value = value << 1;
         self.update_zero_and_negative_flags(value);
         match mode {
-            AddressingMode::Immediate => {self.set_reg_a(value);},
+            AddressingMode::Immediate => {
+                self.set_reg_a(value);
+            }
             _ => {
                 self.mem_write(addr, value);
             }
         };
+    }
+
+    fn branch(&mut self, condition: bool) {
+        if !condition {
+            return;
+        }
+        let value = self.mem_read(self.program_counter) as u16;
+        self.program_counter = if value < 128 {
+            self.program_counter + value
+        } else {
+            self.program_counter + 128 - value
+        }
     }
 
     // INSTRUCTIONS END
@@ -204,6 +218,7 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.reg_y as u16);
                 deref
             }
+            AddressingMode::Relative => 0,
 
             AddressingMode::NoneAddressing => {
                 panic!("mode {:?} is not supported", mode);
@@ -290,6 +305,18 @@ impl CPU {
                 }
                 "ASL" => {
                     self.asl(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BCC" => {
+                    self.branch(!self.check_flag(StatusFlag::Carry));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BCS" => {
+                    self.branch(self.check_flag(StatusFlag::Carry));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BEQ" => {
+                    self.branch(self.check_flag(StatusFlag::Zero));
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "BRK" => {
