@@ -1,4 +1,4 @@
-use crate::constants::{self, AddressingMode, StatusFlag, find_opcode};
+use crate::constants::{AddressingMode, StatusFlag, find_opcode};
 
 pub struct CPU {
     pub reg_a: u8,
