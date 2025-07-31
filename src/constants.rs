@@ -32,7 +32,7 @@ pub struct OpCode {
     pub add_mode: AddressingMode,
 }
 
-pub static CPU_OP_CODES: [OpCode; 29] = [
+pub static CPU_OP_CODES: [OpCode; 34] = [
     OpCode {code: 0x00, name: "BRK", bytes: 1, cycles: 7, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xaa, name: "TAX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xe8, name: "INX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
@@ -66,7 +66,13 @@ pub static CPU_OP_CODES: [OpCode; 29] = [
     OpCode {code: 0x39, name: "AND", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_Y},
     OpCode {code: 0x21, name: "AND", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_X},
     OpCode {code: 0x31, name: "AND", bytes: 2, cycles: 5, /* +1 if page crossed */ add_mode: AddressingMode::Indirect_Y},
-];
+
+    OpCode {code: 0x0a, name: "ASL", bytes: 1, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0x06, name: "ASL", bytes: 2, cycles: 5, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0x16, name: "ASL", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0x0e, name: "ASL", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0x1e, name: "ASL", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
+    ];
 
 pub fn find_opcode(code: u8) -> Option<&'static OpCode> {
     CPU_OP_CODES.iter().find(|op| op.code == code)

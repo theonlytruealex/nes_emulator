@@ -1,5 +1,5 @@
-mod cpu;
 mod constants;
+mod cpu;
 use crate::cpu::CPU;
 fn main() {
     println!("Hello, world!");
@@ -75,14 +75,54 @@ mod test {
         assert_eq!(cpu.reg_a, 0x65);
     }
 
-        #[test]
+    #[test]
     fn test_adc_from_memory() {
         let mut cpu = CPU::new();
-        cpu.mem_write(0x10, 0x10);
+        cpu.mem_write(0x10, 0x12);
 
         cpu.load_and_run(vec![0xa5, 0x10, 0x65, 0x10, 0x00]);
 
-        assert_eq!(cpu.reg_a, 0x20);
+        assert_eq!(cpu.reg_a, 0x24);
+    }
+    #[test]
+    fn test_and_basic() {
+        let mut cpu = CPU::new();
+        cpu.mem_write(0x10, 0x55);
+
+        cpu.load_and_run(vec![0xa5, 0x10, 0x29, 0x11, 0x00]);
+
+        assert_eq!(cpu.reg_a, (0x55 & 0x11));
     }
 
+    #[test]
+    fn test_and_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.mem_write(0x10, 0x56);
+
+        cpu.load_and_run(vec![0xa5, 0x10, 0x25, 0x10, 0x00]);
+
+        assert_eq!(cpu.reg_a, (0x56 & 0x56));
+    }
+
+    #[test]
+    fn test_asl() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x10, 0x0a, 0x00]);
+
+        assert_eq!(cpu.reg_a, (0x20));
+        cpu.load_and_run(vec![0xa9, 0xff, 0x0a, 0x00]);
+
+        assert_eq!(cpu.reg_a, (0xfe));
+    }
+
+    #[test]
+    fn test_asl_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.mem_write(0x10, 0x10);
+    
+        cpu.load_and_run(vec![0x06, 0x10, 0x00]);
+    
+        let value = cpu.mem_read(0x10);
+        assert_eq!(value, 0x20);
+    }
 }

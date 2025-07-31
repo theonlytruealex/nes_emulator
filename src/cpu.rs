@@ -56,6 +56,36 @@ impl CPU {
         self.add_to_reg_a(value);
     }
 
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let result = value & self.reg_a;
+        self.set_reg_a(result);
+        self.update_zero_and_negative_flags(self.reg_a);
+    }
+
+    fn asl(&mut self, mode: &AddressingMode) {
+        let mut addr: u16 = 0;
+        let mut value = match mode {
+            AddressingMode::Immediate => self.reg_a,
+            _ => {
+                addr = self.get_operand_address(mode);
+                self.mem_read(addr)
+            }
+        };
+        if value & 0b1000_0000 == 0 {
+            self.clear_flag(StatusFlag::Carry);
+        }
+        value = value << 1;
+        self.update_zero_and_negative_flags(value);
+        match mode {
+            AddressingMode::Immediate => {self.set_reg_a(value);},
+            _ => {
+                self.mem_write(addr, value);
+            }
+        };
+    }
+
     // INSTRUCTIONS END
 
     // FLAGS START
@@ -71,7 +101,7 @@ impl CPU {
     pub fn check_flag(&self, flag: StatusFlag) -> bool {
         self.status & (flag as u8) != 0
     }
-    
+
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
             self.set_flag(StatusFlag::Zero);
@@ -185,7 +215,7 @@ impl CPU {
 
     // MEM START
 
-    fn mem_read(&self, addr: u16) -> u8 {
+    pub fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
     }
 
@@ -252,6 +282,14 @@ impl CPU {
                 }
                 "ADC" => {
                     self.adc(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "AND" => {
+                    self.and(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "ASL" => {
+                    self.asl(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "BRK" => {
