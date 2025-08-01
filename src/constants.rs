@@ -19,6 +19,7 @@ pub enum AddressingMode {
     Absolute,
     Absolute_X,
     Absolute_Y,
+    Indirect,
     Indirect_X,
     Indirect_Y,
     NoneAddressing,
@@ -33,7 +34,7 @@ pub struct OpCode {
     pub add_mode: AddressingMode,
 }
 
-pub static CPU_OP_CODES: [OpCode; 80] = [
+pub static CPU_OP_CODES: [OpCode; 127] = [
     OpCode {code: 0x00, name: "BRK", bytes: 1, cycles: 7, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xaa, name: "TAX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xe8, name: "INX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
@@ -41,9 +42,13 @@ pub static CPU_OP_CODES: [OpCode; 80] = [
     OpCode {code: 0xca, name: "DEX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0x88, name: "DEY", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0x18, name: "CLC", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x38, name: "SEC", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xd8, name: "CLD", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0xf8, name: "SED", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0x58, name: "CLI", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x78, name: "SEI", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xb8, name: "CLV", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0xea, name: "NOP", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
 
     OpCode {code: 0x90, name: "BCC", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
     OpCode {code: 0xb0, name: "BCS", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
@@ -62,6 +67,18 @@ pub static CPU_OP_CODES: [OpCode; 80] = [
     OpCode {code: 0xa1, name: "LDA", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_X},
     OpCode {code: 0xb1, name: "LDA", bytes: 2, cycles: 5, /* +1 if page crossed */ add_mode: AddressingMode::Indirect_Y},
     
+    OpCode {code: 0xa2, name: "LDX", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0xa6, name: "LDX", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0xb6, name: "LDX", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_Y},
+    OpCode {code: 0xae, name: "LDX", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0xbe, name: "LDX", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_Y},
+
+    OpCode {code: 0xa0, name: "LDY", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0xa4, name: "LDY", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0xb4, name: "LDY", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0xac, name: "LDY", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0xbc, name: "LDY", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_X},
+    
     OpCode {code: 0x85, name: "STA", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
     OpCode {code: 0x95, name: "STA", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_X},
 
@@ -73,6 +90,15 @@ pub static CPU_OP_CODES: [OpCode; 80] = [
     OpCode {code: 0x79, name: "ADC", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_Y},
     OpCode {code: 0x61, name: "ADC", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_X},
     OpCode {code: 0x71, name: "ADC", bytes: 2, cycles: 5, /* +1 if page crossed */ add_mode: AddressingMode::Indirect_Y},
+
+    OpCode {code: 0xe9, name: "SBC", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0xe5, name: "SBC", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0xf5, name: "SBC", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0xed, name: "SBC", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0xfd, name: "SBC", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_X},
+    OpCode {code: 0xf9, name: "SBC", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_Y},
+    OpCode {code: 0xe1, name: "SBC", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_X},
+    OpCode {code: 0xf1, name: "SBC", bytes: 2, cycles: 5, /* +1 if page crossed */ add_mode: AddressingMode::Indirect_Y},
     
     OpCode {code: 0x29, name: "AND", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
     OpCode {code: 0x25, name: "AND", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
@@ -91,16 +117,43 @@ pub static CPU_OP_CODES: [OpCode; 80] = [
     OpCode {code: 0x59, name: "EOR", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_Y},
     OpCode {code: 0x41, name: "EOR", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_X},
     OpCode {code: 0x51, name: "EOR", bytes: 2, cycles: 5, /* +1 if page crossed */ add_mode: AddressingMode::Indirect_Y},
+
+    OpCode {code: 0x09, name: "ORA", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0x05, name: "ORA", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0x15, name: "ORA", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0x0d, name: "ORA", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0x1d, name: "ORA", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_X},
+    OpCode {code: 0x19, name: "ORA", bytes: 3, cycles: 4, /* +1 if page crossed */ add_mode: AddressingMode::Absolute_Y},
+    OpCode {code: 0x01, name: "ORA", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_X},
+    OpCode {code: 0x11, name: "ORA", bytes: 2, cycles: 5, /* +1 if page crossed */ add_mode: AddressingMode::Indirect_Y},
     
     OpCode {code: 0x0a, name: "ASL", bytes: 1, cycles: 2, add_mode: AddressingMode::Immediate},
     OpCode {code: 0x06, name: "ASL", bytes: 2, cycles: 5, add_mode: AddressingMode::ZeroPage},
     OpCode {code: 0x16, name: "ASL", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
     OpCode {code: 0x0e, name: "ASL", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
     OpCode {code: 0x1e, name: "ASL", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
+
+    OpCode {code: 0x4a, name: "LSR", bytes: 1, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0x46, name: "LSR", bytes: 2, cycles: 5, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0x56, name: "LSR", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0x4e, name: "LSR", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0x5e, name: "LSR", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
+
+    OpCode {code: 0x2a, name: "ROL", bytes: 1, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0x26, name: "ROL", bytes: 2, cycles: 5, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0x36, name: "ROL", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0x2e, name: "ROL", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0x3e, name: "ROL", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
+
+    OpCode {code: 0x6a, name: "ROR", bytes: 1, cycles: 2, add_mode: AddressingMode::Immediate},
+    OpCode {code: 0x66, name: "ROR", bytes: 2, cycles: 5, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0x76, name: "ROR", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0x6e, name: "ROR", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0x7e, name: "ROR", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
     
     OpCode {code: 0x24, name: "BIT", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
     OpCode {code: 0x2c, name: "BIT", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
-
+    
     OpCode {code: 0xc9, name: "CMP", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
     OpCode {code: 0xc5, name: "CMP", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
     OpCode {code: 0xd5, name: "CMP", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_X},
@@ -122,11 +175,14 @@ pub static CPU_OP_CODES: [OpCode; 80] = [
     OpCode {code: 0xd6, name: "DEC", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
     OpCode {code: 0xce, name: "DEC", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
     OpCode {code: 0xde, name: "DEC", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
+    
+    OpCode {code: 0xe6, name: "INC", bytes: 2, cycles: 5, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0xf6, name: "INC", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0xee, name: "INC", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0xfe, name: "INC", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
 
-    OpCode {code: 0xe6, name: "DEC", bytes: 2, cycles: 5, add_mode: AddressingMode::ZeroPage},
-    OpCode {code: 0xf6, name: "DEC", bytes: 2, cycles: 6, add_mode: AddressingMode::ZeroPage_X},
-    OpCode {code: 0xee, name: "DEC", bytes: 3, cycles: 6, add_mode: AddressingMode::Absolute},
-    OpCode {code: 0xfe, name: "DEC", bytes: 3, cycles: 7, add_mode: AddressingMode::Absolute_X},
+    OpCode {code: 0x4c, name: "JMP", bytes: 3, cycles: 3, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0x6c, name: "JMP", bytes: 3, cycles: 5, add_mode: AddressingMode::Indirect},
     ];
     
     pub fn find_opcode(code: u8) -> Option<&'static OpCode> {

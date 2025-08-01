@@ -31,6 +31,22 @@ impl CPU {
         self.update_zero_and_negative_flags(self.reg_a);
     }
 
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.reg_x = value;
+        self.update_zero_and_negative_flags(self.reg_x);
+    }
+
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.reg_y = value;
+        self.update_zero_and_negative_flags(self.reg_y);
+    }
+
     fn tax(&mut self) {
         self.reg_x = self.reg_a;
         self.update_zero_and_negative_flags(self.reg_x);
@@ -83,6 +99,12 @@ impl CPU {
         self.add_to_reg_a(value);
     }
 
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.add_to_reg_a(((value as i8).wrapping_neg().wrapping_sub(1)) as u8);
+    }
+
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -99,6 +121,14 @@ impl CPU {
         self.update_zero_and_negative_flags(self.reg_a);
     }
 
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let result = value | self.reg_a;
+        self.set_reg_a(result);
+        self.update_zero_and_negative_flags(self.reg_a);
+    }
+
     fn asl(&mut self, mode: &AddressingMode) {
         let mut addr: u16 = 0;
         let mut value = match mode {
@@ -111,9 +141,120 @@ impl CPU {
 
         if value & 0b1000_0000 == 0 {
             self.clear_flag(StatusFlag::Carry);
+        } else {
+            self.set_flag(StatusFlag::Carry);
         }
 
         value = value << 1;
+        self.update_zero_and_negative_flags(value);
+
+        match mode {
+            AddressingMode::Immediate => {
+                self.set_reg_a(value);
+            }
+            _ => {
+                self.mem_write(addr, value);
+            }
+        };
+    }
+
+    fn rol(&mut self, mode: &AddressingMode) {
+        let mut addr: u16 = 0;
+        let mut value = match mode {
+            AddressingMode::Immediate => self.reg_a,
+            _ => {
+                addr = self.get_operand_address(mode);
+                self.mem_read(addr)
+            }
+        };
+
+        if value & 0b1000_0000 == 0 {
+            value = value << 1;
+            value &= 0b1111_1110;
+            value += match self.check_flag(StatusFlag::Carry) {
+                true => 1,
+                false => 0
+            };
+            self.update_zero_and_negative_flags(value);
+            self.clear_flag(StatusFlag::Carry);
+        } else {
+            value = value << 1;
+            value &= 0b1111_1110;
+            value += match self.check_flag(StatusFlag::Carry) {
+                true => 1,
+                false => 0
+            };
+            self.update_zero_and_negative_flags(value);
+            self.set_flag(StatusFlag::Carry);
+        }
+
+        match mode {
+            AddressingMode::Immediate => {
+                self.set_reg_a(value);
+            }
+            _ => {
+                self.mem_write(addr, value);
+            }
+        };
+    }
+
+    fn ror(&mut self, mode: &AddressingMode) {
+        let mut addr: u16 = 0;
+        let mut value = match mode {
+            AddressingMode::Immediate => self.reg_a,
+            _ => {
+                addr = self.get_operand_address(mode);
+                self.mem_read(addr)
+            }
+        };
+
+        if value & 0b0000_0001 == 0 {
+            value = value >> 1;
+            value &= 0b0111_1111;
+            value |= match self.check_flag(StatusFlag::Carry) {
+                true => 0b1000_0000,
+                false => 0
+            };
+            self.update_zero_and_negative_flags(value);
+            self.clear_flag(StatusFlag::Carry);
+        } else {
+            value = value >> 1;
+            value &= 0b0111_1111;
+            value |= match self.check_flag(StatusFlag::Carry) {
+                true =>  0b1000_0000,
+                false => 0
+            };
+            self.update_zero_and_negative_flags(value);
+            self.set_flag(StatusFlag::Carry);
+        }
+
+        match mode {
+            AddressingMode::Immediate => {
+                self.set_reg_a(value);
+            }
+            _ => {
+                self.mem_write(addr, value);
+            }
+        };
+    }
+
+    fn lsr(&mut self, mode: &AddressingMode) {
+        let mut addr: u16 = 0;
+        let mut value = match mode {
+            AddressingMode::Immediate => self.reg_a,
+            _ => {
+                addr = self.get_operand_address(mode);
+                self.mem_read(addr)
+            }
+        };
+
+        if value & 0b0000_0001 == 0 {
+            self.clear_flag(StatusFlag::Carry);
+        } else {
+            self.set_flag(StatusFlag::Carry);
+        }
+
+        value = value >> 1;
         self.update_zero_and_negative_flags(value);
 
         match mode {
@@ -202,6 +343,10 @@ impl CPU {
         self.update_zero_and_negative_flags(result);
 
         self.mem_write(addr, result);
+    }
+
+    fn jmp(&mut self, mode: &AddressingMode) {
+        self.program_counter = self.get_operand_address(mode);
     }
 
     // INSTRUCTIONS END
@@ -304,7 +449,11 @@ impl CPU {
                 let addr = base.wrapping_add(self.reg_y as u16);
                 addr
             }
-
+            AddressingMode::Indirect => {
+                let ptr: u16 = self.mem_read_u16(self.program_counter);
+                let addr: u16 = self.mem_read_u16(ptr);
+                addr
+            }
             AddressingMode::Indirect_X => {
                 let base = self.mem_read(self.program_counter);
 
@@ -389,6 +538,14 @@ impl CPU {
                     self.lda(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
+                "LDX" => {
+                    self.ldx(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "LDY" => {
+                    self.ldy(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
                 "STA" => {
                     self.sta(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
@@ -411,17 +568,30 @@ impl CPU {
                 "CLC" => {
                     self.clear_flag(StatusFlag::Carry);
                 }
+                "SEC" => {
+                    self.set_flag(StatusFlag::Carry);
+                }
                 "CLD" => {
                     self.clear_flag(StatusFlag::DecimalMode);
                 }
+                "SED" => {
+                    self.set_flag(StatusFlag::DecimalMode);
+                }
                 "CLI" => {
                     self.clear_flag(StatusFlag::InterruptDisable);
+                }
+                "SEI" => {
+                    self.set_flag(StatusFlag::InterruptDisable);
                 }
                 "CLV" => {
                     self.clear_flag(StatusFlag::Overflow);
                 }
                 "ADC" => {
                     self.adc(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "SBC" => {
+                    self.sbc(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "AND" => {
@@ -432,8 +602,24 @@ impl CPU {
                     self.eor(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
+                "ORA" => {
+                    self.ora(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
                 "ASL" => {
                     self.asl(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "ROL" => {
+                    self.rol(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "LSR" => {
+                    self.lsr(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "ROR" => {
+                    self.ror(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "BCC" => {
@@ -487,6 +673,12 @@ impl CPU {
                 "DEC" => {
                     self.dec(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
+                }
+                "JMP" => {
+                    self.jmp(&op.add_mode);
+                }
+                "NOP" => {
+                    continue;
                 }
                 "BRK" => {
                     return;
