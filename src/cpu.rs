@@ -45,6 +45,33 @@ impl CPU {
         self.update_zero_and_negative_flags(self.reg_x);
     }
 
+    fn iny(&mut self) {
+        if self.reg_y == 0xFF {
+            self.reg_y = 0;
+        } else {
+            self.reg_y += 1;
+        }
+        self.update_zero_and_negative_flags(self.reg_y);
+    }
+
+    fn dex(&mut self) {
+        if self.reg_x == 0x00 {
+            self.reg_x = 0b1111_1111;
+        } else {
+            self.reg_x -= 1;
+        }
+        self.update_zero_and_negative_flags(self.reg_x);
+    }
+
+    fn dey(&mut self) {
+        if self.reg_y == 0x00 {
+            self.reg_y = 0b1111_1111;
+        } else {
+            self.reg_y -= 1;
+        }
+        self.update_zero_and_negative_flags(self.reg_y);
+    }
+
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.reg_a);
@@ -64,6 +91,14 @@ impl CPU {
         self.update_zero_and_negative_flags(self.reg_a);
     }
 
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let result = value ^ self.reg_a;
+        self.set_reg_a(result);
+        self.update_zero_and_negative_flags(self.reg_a);
+    }
+
     fn asl(&mut self, mode: &AddressingMode) {
         let mut addr: u16 = 0;
         let mut value = match mode {
@@ -73,11 +108,14 @@ impl CPU {
                 self.mem_read(addr)
             }
         };
+
         if value & 0b1000_0000 == 0 {
             self.clear_flag(StatusFlag::Carry);
         }
+
         value = value << 1;
         self.update_zero_and_negative_flags(value);
+
         match mode {
             AddressingMode::Immediate => {
                 self.set_reg_a(value);
@@ -86,6 +124,25 @@ impl CPU {
                 self.mem_write(addr, value);
             }
         };
+    }
+
+    fn cmp(&mut self, mode: &AddressingMode, reg: u8) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        if reg >= value {
+            self.set_flag(StatusFlag::Carry);
+            self.clear_flag(StatusFlag::Negative);
+        } else {
+            self.clear_flag(StatusFlag::Carry);
+            self.set_flag(StatusFlag::Negative);
+        }
+
+        if reg == value {
+            self.set_flag(StatusFlag::Zero);
+        } else {
+            self.clear_flag(StatusFlag::Zero);
+        }
     }
 
     fn branch(&mut self, condition: bool) {
@@ -98,6 +155,53 @@ impl CPU {
         } else {
             self.program_counter + 128 - value
         }
+    }
+
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        if value & 0b1000_0000 != 0 {
+            self.set_flag(StatusFlag::Negative);
+        } else {
+            self.clear_flag(StatusFlag::Negative);
+        }
+        if value & 0b0100_0000 != 0 {
+            self.set_flag(StatusFlag::Overflow);
+        } else {
+            self.clear_flag(StatusFlag::Overflow);
+        }
+        if value & self.reg_a == 0 {
+            self.set_flag(StatusFlag::Zero);
+        } else {
+            self.clear_flag(StatusFlag::Zero);
+        }
+    }
+    fn dec(&mut self, mode: &AddressingMode) {
+        let mut addr: u16 = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+
+        let result: u8 = match value {
+            0 => 0b1111_1111,
+            anything => anything - 1,
+        };
+
+        self.update_zero_and_negative_flags(result);
+
+        self.mem_write(addr, result);
+    }
+
+    fn inc(&mut self, mode: &AddressingMode) {
+        let mut addr: u16 = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+
+        let result: u8 = match value {
+            0b1111_1111 => 0,
+            anything => anything + 1,
+        };
+
+        self.update_zero_and_negative_flags(result);
+
+        self.mem_write(addr, result);
     }
 
     // INSTRUCTIONS END
@@ -295,12 +399,37 @@ impl CPU {
                 "INX" => {
                     self.inx();
                 }
+                "INY" => {
+                    self.iny();
+                }
+                "DEX" => {
+                    self.dex();
+                }
+                "DEY" => {
+                    self.dey();
+                }
+                "CLC" => {
+                    self.clear_flag(StatusFlag::Carry);
+                }
+                "CLD" => {
+                    self.clear_flag(StatusFlag::DecimalMode);
+                }
+                "CLI" => {
+                    self.clear_flag(StatusFlag::InterruptDisable);
+                }
+                "CLV" => {
+                    self.clear_flag(StatusFlag::Overflow);
+                }
                 "ADC" => {
                     self.adc(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "AND" => {
                     self.and(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "EOR" => {
+                    self.eor(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "ASL" => {
@@ -317,6 +446,46 @@ impl CPU {
                 }
                 "BEQ" => {
                     self.branch(self.check_flag(StatusFlag::Zero));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BNE" => {
+                    self.branch(!self.check_flag(StatusFlag::Zero));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BMI" => {
+                    self.branch(self.check_flag(StatusFlag::Negative));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BPL" => {
+                    self.branch(!self.check_flag(StatusFlag::Negative));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BVS" => {
+                    self.branch(self.check_flag(StatusFlag::Overflow));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "BIT" => {
+                    self.bit(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "CMP" => {
+                    self.cmp(&op.add_mode, self.reg_a);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "CPX" => {
+                    self.cmp(&op.add_mode, self.reg_x);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "CPY" => {
+                    self.cmp(&op.add_mode, self.reg_y);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "INC" => {
+                    self.inc(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "DEC" => {
+                    self.dec(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "BRK" => {
