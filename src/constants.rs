@@ -1,3 +1,7 @@
+use std::fmt;
+
+pub const STACK_OFFSET: u16 = 0x100;
+
 pub enum StatusFlag {
     Carry = 0b0000_0001,
     Zero = 0b0000_0010,
@@ -7,6 +11,20 @@ pub enum StatusFlag {
     Unused = 0b0010_0000,
     Overflow = 0b0100_0000,
     Negative = 0b1000_0000,
+}
+
+#[derive(Debug, Clone)]
+pub struct StackError {
+    pub counter: u16,
+    pub err_msg: String,
+}
+
+impl fmt::Display for StackError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let counter = self.counter;
+        let msg = self.err_msg.clone();
+        write!(f, "{msg} on program counter: {counter}")
+    }
 }
 
 #[derive(Debug)]
@@ -34,7 +52,7 @@ pub struct OpCode {
     pub add_mode: AddressingMode,
 }
 
-pub static CPU_OP_CODES: [OpCode; 127] = [
+pub static CPU_OP_CODES: [OpCode; 132] = [
     OpCode {code: 0x00, name: "BRK", bytes: 1, cycles: 7, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xaa, name: "TAX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xe8, name: "INX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
@@ -50,6 +68,11 @@ pub static CPU_OP_CODES: [OpCode; 127] = [
     OpCode {code: 0xb8, name: "CLV", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xea, name: "NOP", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
 
+    OpCode {code: 0x48, name: "PHA", bytes: 1, cycles: 3, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x68, name: "PLA", bytes: 1, cycles: 3, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x08, name: "PHP", bytes: 1, cycles: 4, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x28, name: "PLP", bytes: 1, cycles: 4, add_mode: AddressingMode::NoneAddressing},
+    
     OpCode {code: 0x90, name: "BCC", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
     OpCode {code: 0xb0, name: "BCS", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
     OpCode {code: 0xf0, name: "BEQ", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
@@ -183,6 +206,8 @@ pub static CPU_OP_CODES: [OpCode; 127] = [
 
     OpCode {code: 0x4c, name: "JMP", bytes: 3, cycles: 3, add_mode: AddressingMode::Absolute},
     OpCode {code: 0x6c, name: "JMP", bytes: 3, cycles: 5, add_mode: AddressingMode::Indirect},
+
+    OpCode {code: 0x20, name: "JSR", bytes: 3, cycles: 3, add_mode: AddressingMode::Absolute},
     ];
     
     pub fn find_opcode(code: u8) -> Option<&'static OpCode> {

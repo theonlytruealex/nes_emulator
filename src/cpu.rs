@@ -1,4 +1,4 @@
-use crate::constants::{AddressingMode, StatusFlag, find_opcode};
+use crate::constants::{AddressingMode, STACK_OFFSET, StackError, StatusFlag, find_opcode};
 
 pub struct CPU {
     pub reg_a: u8,
@@ -6,6 +6,7 @@ pub struct CPU {
     pub program_counter: u16,
     pub reg_x: u8,
     pub reg_y: u8,
+    pub stp: u8,
     memory: [u8; 0xFFFF],
 }
 
@@ -17,9 +18,62 @@ impl CPU {
             program_counter: 0,
             reg_x: 0,
             reg_y: 0,
+            stp: 0xff,
             memory: [0; 0xFFFF],
         }
     }
+
+    // STACK COMMANDS START
+
+    fn push(&mut self, value: u8) -> Result<(), StackError> {
+        if self.stp == 0 {
+            return Err(StackError {
+                counter: self.program_counter,
+                err_msg: "Stack Overflow".to_owned(),
+            });
+        }
+        self.stp -= 1;
+        self.mem_write(STACK_OFFSET + self.stp as u16, value);
+        Ok(())
+    }
+
+    fn push_u16(&mut self, value: u16) -> Result<(), StackError> {
+        if self.stp < 2 {
+            return Err(StackError {
+                counter: self.program_counter,
+                err_msg: "Stack Overflow on u16".to_owned(),
+            });
+        }
+        self.stp -= 2;
+        self.mem_write_u16(STACK_OFFSET + self.stp as u16, value);
+        Ok(())
+    }
+
+    fn pop(&mut self) -> Result<u8, StackError> {
+        if self.stp == 0xff {
+            return Err(StackError {
+                counter: self.program_counter,
+                err_msg: "Stack Underflow".to_owned(),
+            });
+        }
+        let value = self.mem_read(STACK_OFFSET + self.stp as u16);
+        self.stp += 1;
+        Ok(value)
+    }
+
+    fn pop_u16(&mut self) -> Result<u16, StackError> {
+        if self.stp == 0xfe {
+            return Err(StackError {
+                counter: self.program_counter,
+                err_msg: "Stack Underflow on u16".to_owned(),
+            });
+        }
+        let value = self.mem_read_u16(STACK_OFFSET + self.stp as u16);
+        self.stp += 2;
+        Ok(value)
+    }
+
+    // STACK COMMANDS START
 
     // INSTRUCTIONS START
 
@@ -91,6 +145,25 @@ impl CPU {
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.reg_a);
+    }
+
+    fn pla(&mut self) {
+        match self.pop() {
+            Ok(value) => {
+                self.reg_a = value;
+                self.update_zero_and_negative_flags(self.reg_a);
+            }
+            Err(e) => eprintln!("{}", e),
+        };
+    }
+
+    fn plp(&mut self) {
+        match self.pop() {
+            Ok(value) => {
+                self.status = value;
+            }
+            Err(e) => eprintln!("{}", e),
+        };
     }
 
     fn adc(&mut self, mode: &AddressingMode) {
@@ -173,7 +246,7 @@ impl CPU {
             value &= 0b1111_1110;
             value += match self.check_flag(StatusFlag::Carry) {
                 true => 1,
-                false => 0
+                false => 0,
             };
             self.update_zero_and_negative_flags(value);
             self.clear_flag(StatusFlag::Carry);
@@ -182,7 +255,7 @@ impl CPU {
             value &= 0b1111_1110;
             value += match self.check_flag(StatusFlag::Carry) {
                 true => 1,
-                false => 0
+                false => 0,
             };
             self.update_zero_and_negative_flags(value);
             self.set_flag(StatusFlag::Carry);
@@ -213,7 +286,7 @@ impl CPU {
             value &= 0b0111_1111;
             value |= match self.check_flag(StatusFlag::Carry) {
                 true => 0b1000_0000,
-                false => 0
+                false => 0,
             };
             self.update_zero_and_negative_flags(value);
             self.clear_flag(StatusFlag::Carry);
@@ -221,8 +294,8 @@ impl CPU {
             value = value >> 1;
             value &= 0b0111_1111;
             value |= match self.check_flag(StatusFlag::Carry) {
-                true =>  0b1000_0000,
-                false => 0
+                true => 0b1000_0000,
+                false => 0,
             };
             self.update_zero_and_negative_flags(value);
             self.set_flag(StatusFlag::Carry);
@@ -347,6 +420,33 @@ impl CPU {
 
     fn jmp(&mut self, mode: &AddressingMode) {
         self.program_counter = self.get_operand_address(mode);
+    }
+
+    fn jsr(&mut self, mode: &AddressingMode) {
+        match self.push_u16(self.program_counter + 1) {
+            Err(e) => {
+                eprintln!("{}", e)
+            }
+            _ => {}
+        }
+        self.program_counter = self.get_operand_address(mode);
+    }
+
+    fn brk(&mut self) {
+        match self.push_u16(self.program_counter + 1) {
+            Err(e) => {
+                eprintln!("{}", e)
+            }
+            _ => {}
+        }
+        match self.push(self.status) {
+            Err(e) => {
+                eprintln!("{}", e)
+            }
+            _ => {}
+        }
+        self.set_flag(StatusFlag::Break);
+        self.program_counter = self.mem_read_u16(0xfffe)
     }
 
     // INSTRUCTIONS END
@@ -550,6 +650,24 @@ impl CPU {
                     self.sta(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
+                "PLA" => {
+                    self.pla();
+                }
+                "PLP" => {
+                    self.plp();
+                }
+                "PHA" => match self.push(self.reg_a) {
+                    Err(e) => {
+                        eprintln!("{}", e)
+                    }
+                    _ => {}
+                },
+                "PHP" => match self.push(self.status) {
+                    Err(e) => {
+                        eprintln!("{}", e)
+                    }
+                    _ => {}
+                },
                 "TAX" => {
                     self.tax();
                 }
@@ -677,10 +795,14 @@ impl CPU {
                 "JMP" => {
                     self.jmp(&op.add_mode);
                 }
+                "JSR" => {
+                    self.jsr(&op.add_mode);
+                }
                 "NOP" => {
                     continue;
                 }
                 "BRK" => {
+                    self.brk();
                     return;
                 }
                 _ => todo!(),
