@@ -106,6 +106,30 @@ impl CPU {
         self.update_zero_and_negative_flags(self.reg_x);
     }
 
+    fn tay(&mut self) {
+        self.reg_y = self.reg_a;
+        self.update_zero_and_negative_flags(self.reg_y);
+    }
+
+    fn tsx(&mut self) {
+        self.reg_x = self.stp;
+        self.update_zero_and_negative_flags(self.reg_x);
+    }
+
+    fn txa(&mut self) {
+        self.reg_a = self.reg_x;
+        self.update_zero_and_negative_flags(self.reg_a);
+    }
+
+    fn txs(&mut self) {
+        self.stp = self.reg_x;
+    }
+
+    fn tya(&mut self) {
+        self.reg_a = self.reg_y;
+        self.update_zero_and_negative_flags(self.reg_a);
+    }
+
     fn inx(&mut self) {
         if self.reg_x == 0xFF {
             self.reg_x = 0;
@@ -145,6 +169,16 @@ impl CPU {
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.reg_a);
+    }
+
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.reg_x);
+    }
+
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.reg_y);
     }
 
     fn pla(&mut self) {
@@ -360,14 +394,14 @@ impl CPU {
     }
 
     fn branch(&mut self, condition: bool) {
-        if !condition {
-            return;
-        }
-        let value = self.mem_read(self.program_counter) as u16;
-        self.program_counter = if value < 128 {
-            self.program_counter + value
-        } else {
-            self.program_counter + 128 - value
+        if condition {
+            let jump: i8 = self.mem_read(self.program_counter) as i8;
+            let jump_addr = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
+
+            self.program_counter = jump_addr;
         }
     }
 
@@ -430,6 +464,35 @@ impl CPU {
             _ => {}
         }
         self.program_counter = self.get_operand_address(mode);
+    }
+    fn rts(&mut self) {
+        self.program_counter = match self.pop_u16() {
+            Err(e) => {
+                eprintln!("{}", e);
+                self.brk();
+                0
+            }
+            Ok(counter) => counter,
+        };
+    }
+
+    fn rti(&mut self) {
+        self.status = match self.pop() {
+            Err(e) => {
+                eprintln!("{}", e);
+                self.brk();
+                0
+            }
+            Ok(flags) => flags,
+        };
+        self.program_counter = match self.pop_u16() {
+            Err(e) => {
+                eprintln!("{}", e);
+                self.brk();
+                0
+            }
+            Ok(counter) => counter,
+        };
     }
 
     fn brk(&mut self) {
@@ -617,8 +680,8 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-        self.mem_write_u16(0xFFFC, 0x8000);
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
+        self.mem_write_u16(0xFFFC, 0x0600);
     }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
@@ -628,9 +691,24 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
+
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         loop {
+            ::std::thread::sleep(std::time::Duration::new(1, 0));
             let opcode_val = self.mem_read(self.program_counter);
-            let op = find_opcode(opcode_val).expect("Unknown opcode");
+            let counter = self.program_counter;
+            print!(
+                "NEW COMMAND at: {:#x} ({} in dec), code: {:#x}, or: ",
+                counter, counter, opcode_val
+            );
+            let op = find_opcode(opcode_val)
+                .expect(&format!("Unknown opcode {:#x}", opcode_val).to_owned());
+            println!("{}", op.name);
             self.program_counter += 1;
 
             match op.name {
@@ -648,6 +726,14 @@ impl CPU {
                 }
                 "STA" => {
                     self.sta(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "STX" => {
+                    self.stx(&op.add_mode);
+                    self.program_counter += op.bytes as u16 - 1;
+                }
+                "STY" => {
+                    self.sty(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
                 }
                 "PLA" => {
@@ -670,6 +756,21 @@ impl CPU {
                 },
                 "TAX" => {
                     self.tax();
+                }
+                "TAY" => {
+                    self.tay();
+                }
+                "TSX" => {
+                    self.tsx();
+                }
+                "TXA" => {
+                    self.txa();
+                }
+                "TXS" => {
+                    self.txs();
+                }
+                "TYA" => {
+                    self.tya();
                 }
                 "INX" => {
                     self.inx();
@@ -768,6 +869,10 @@ impl CPU {
                     self.branch(self.check_flag(StatusFlag::Overflow));
                     self.program_counter += op.bytes as u16 - 1;
                 }
+                "BVC" => {
+                    self.branch(!self.check_flag(StatusFlag::Overflow));
+                    self.program_counter += op.bytes as u16 - 1;
+                }
                 "BIT" => {
                     self.bit(&op.add_mode);
                     self.program_counter += op.bytes as u16 - 1;
@@ -798,6 +903,13 @@ impl CPU {
                 "JSR" => {
                     self.jsr(&op.add_mode);
                 }
+                "RTS" => {
+                    self.rts();
+                    self.program_counter += 1;
+                }
+                "RTI" => {
+                    self.rti();
+                }
                 "NOP" => {
                     continue;
                 }
@@ -805,7 +917,7 @@ impl CPU {
                     self.brk();
                     return;
                 }
-                _ => todo!(),
+                _ => {}
             }
         }
     }

@@ -52,9 +52,14 @@ pub struct OpCode {
     pub add_mode: AddressingMode,
 }
 
-pub static CPU_OP_CODES: [OpCode; 132] = [
+pub static CPU_OP_CODES: [OpCode; 151] = [
     OpCode {code: 0x00, name: "BRK", bytes: 1, cycles: 7, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xaa, name: "TAX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x8a, name: "TXA", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0xa8, name: "TAY", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0xba, name: "TSX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0xaa, name: "TXS", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x8a, name: "TYA", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xe8, name: "INX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xc8, name: "INY", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xca, name: "DEX", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
@@ -67,6 +72,8 @@ pub static CPU_OP_CODES: [OpCode; 132] = [
     OpCode {code: 0x78, name: "SEI", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xb8, name: "CLV", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0xea, name: "NOP", bytes: 1, cycles: 2, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x40, name: "RTI", bytes: 1, cycles: 6, add_mode: AddressingMode::NoneAddressing},
+    OpCode {code: 0x60, name: "RTS", bytes: 1, cycles: 6, add_mode: AddressingMode::NoneAddressing},
 
     OpCode {code: 0x48, name: "PHA", bytes: 1, cycles: 3, add_mode: AddressingMode::NoneAddressing},
     OpCode {code: 0x68, name: "PLA", bytes: 1, cycles: 3, add_mode: AddressingMode::NoneAddressing},
@@ -80,6 +87,7 @@ pub static CPU_OP_CODES: [OpCode; 132] = [
     OpCode {code: 0x30, name: "BMI", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
     OpCode {code: 0x10, name: "BPL", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
     OpCode {code: 0x70, name: "BVS", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
+    OpCode {code: 0x50, name: "BVC", bytes: 2, cycles: 2, /* +1 if branch succeeds +2 if to a new Page */ add_mode: AddressingMode::Relative},
 
     OpCode {code: 0xa9, name: "LDA", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
     OpCode {code: 0xa5, name: "LDA", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
@@ -104,6 +112,19 @@ pub static CPU_OP_CODES: [OpCode; 132] = [
     
     OpCode {code: 0x85, name: "STA", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
     OpCode {code: 0x95, name: "STA", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0x8d, name: "STA", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
+    OpCode {code: 0x9d, name: "STA", bytes: 3, cycles: 5, add_mode: AddressingMode::Absolute_X},
+    OpCode {code: 0x99, name: "STA", bytes: 3, cycles: 5, add_mode: AddressingMode::Absolute_Y},
+    OpCode {code: 0x81, name: "STA", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_X},
+    OpCode {code: 0x91, name: "STA", bytes: 2, cycles: 6, add_mode: AddressingMode::Indirect_Y},
+
+    OpCode {code: 0x86, name: "STX", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0x96, name: "STX", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_Y},
+    OpCode {code: 0x8e, name: "STX", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
+
+    OpCode {code: 0x84, name: "STY", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
+    OpCode {code: 0x94, name: "STY", bytes: 2, cycles: 4, add_mode: AddressingMode::ZeroPage_X},
+    OpCode {code: 0x8c, name: "STY", bytes: 3, cycles: 4, add_mode: AddressingMode::Absolute},
 
     OpCode {code: 0x69, name: "ADC", bytes: 2, cycles: 2, add_mode: AddressingMode::Immediate},
     OpCode {code: 0x65, name: "ADC", bytes: 2, cycles: 3, add_mode: AddressingMode::ZeroPage},
