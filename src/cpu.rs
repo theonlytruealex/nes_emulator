@@ -34,43 +34,44 @@ impl CPU {
         }
         self.stp -= 1;
         self.mem_write(STACK_OFFSET + self.stp as u16, value);
+        println!(
+            "VALUE PUSHED: {:#x} to {:#x}",
+            value,
+            STACK_OFFSET + self.stp as u16
+        );
         Ok(())
     }
 
     fn push_u16(&mut self, value: u16) -> Result<(), StackError> {
-        if self.stp < 2 {
-            return Err(StackError {
-                counter: self.program_counter,
-                err_msg: "Stack Overflow on u16".to_owned(),
-            });
-        }
-        self.stp -= 2;
-        self.mem_write_u16(STACK_OFFSET + self.stp as u16, value);
+        println!("u16 PUSHED {:#x}", value);
+        print!("           ");
+        self.push((value >> 8) as u8)?;
+        print!("           ");
+        self.push((value & 0xFF) as u8)?;
         Ok(())
     }
 
     fn pop(&mut self) -> Result<u8, StackError> {
-        if self.stp == 0xff {
+        if self.stp == 0x00 {
             return Err(StackError {
                 counter: self.program_counter,
                 err_msg: "Stack Underflow".to_owned(),
             });
         }
         let value = self.mem_read(STACK_OFFSET + self.stp as u16);
+        println!(
+            "VALUE POPPED: {:#x} from {:#x}",
+            value,
+            STACK_OFFSET + self.stp as u16
+        );
         self.stp += 1;
         Ok(value)
     }
 
     fn pop_u16(&mut self) -> Result<u16, StackError> {
-        if self.stp == 0xfe {
-            return Err(StackError {
-                counter: self.program_counter,
-                err_msg: "Stack Underflow on u16".to_owned(),
-            });
-        }
-        let value = self.mem_read_u16(STACK_OFFSET + self.stp as u16);
-        self.stp += 2;
-        Ok(value)
+        let lo = self.pop()? as u16;
+        let hi = self.pop()? as u16;
+        Ok((hi << 8) | lo)
     }
 
     // STACK COMMANDS START
@@ -80,7 +81,7 @@ impl CPU {
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-
+        println!("     Value loaded: {:#x} from address: {:#x}", value, addr);
         self.reg_a = value;
         self.update_zero_and_negative_flags(self.reg_a);
     }
@@ -402,6 +403,8 @@ impl CPU {
                 .wrapping_add(jump as u16);
 
             self.program_counter = jump_addr;
+        } else {
+            self.program_counter += 1;
         }
     }
 
@@ -509,7 +512,6 @@ impl CPU {
             _ => {}
         }
         self.set_flag(StatusFlag::Break);
-        self.program_counter = self.mem_read_u16(0xfffe)
     }
 
     // INSTRUCTIONS END
@@ -675,6 +677,7 @@ impl CPU {
         self.reg_a = 0;
         self.reg_x = 0;
         self.status = 0;
+        self.stp = 0xff;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -699,17 +702,16 @@ impl CPU {
         F: FnMut(&mut CPU),
     {
         loop {
-            ::std::thread::sleep(std::time::Duration::new(1, 0));
             let opcode_val = self.mem_read(self.program_counter);
             let counter = self.program_counter;
             print!(
                 "NEW COMMAND at: {:#x} ({} in dec), code: {:#x}, or: ",
                 counter, counter, opcode_val
             );
+            self.program_counter += 1;
             let op = find_opcode(opcode_val)
                 .expect(&format!("Unknown opcode {:#x}", opcode_val).to_owned());
             println!("{}", op.name);
-            self.program_counter += 1;
 
             match op.name {
                 "LDA" => {
@@ -843,35 +845,27 @@ impl CPU {
                 }
                 "BCC" => {
                     self.branch(!self.check_flag(StatusFlag::Carry));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BCS" => {
                     self.branch(self.check_flag(StatusFlag::Carry));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BEQ" => {
                     self.branch(self.check_flag(StatusFlag::Zero));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BNE" => {
                     self.branch(!self.check_flag(StatusFlag::Zero));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BMI" => {
                     self.branch(self.check_flag(StatusFlag::Negative));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BPL" => {
                     self.branch(!self.check_flag(StatusFlag::Negative));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BVS" => {
                     self.branch(self.check_flag(StatusFlag::Overflow));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BVC" => {
                     self.branch(!self.check_flag(StatusFlag::Overflow));
-                    self.program_counter += op.bytes as u16 - 1;
                 }
                 "BIT" => {
                     self.bit(&op.add_mode);
@@ -919,6 +913,7 @@ impl CPU {
                 }
                 _ => {}
             }
+            callback(self);
         }
     }
 }

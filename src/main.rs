@@ -1,5 +1,6 @@
 mod constants;
 mod cpu;
+mod bus;
 use crate::cpu::CPU;
 
 use rand::Rng;
@@ -78,6 +79,24 @@ fn color(byte: u8) -> Color {
 }
 
 fn main() {
+    // init sdl2
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+    let window = video_subsystem
+        .window("Snake game", (32.0 * 10.0) as u32, (32.0 * 10.0) as u32)
+        .position_centered()
+        .build()
+        .unwrap();
+
+    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    canvas.set_scale(10.0, 10.0).unwrap();
+
+    let creator = canvas.texture_creator();
+    let mut texture = creator
+        .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
+        .unwrap();
+
     let game_code = vec![
         0x20, 0x06, 0x06, 0x20, 0x38, 0x06, 0x20, 0x0d, 0x06, 0x20, 0x2a, 0x06, 0x60, 0xa9, 0x02,
         0x85, 0x02, 0xa9, 0x04, 0x85, 0x03, 0xa9, 0x11, 0x85, 0x10, 0xa9, 0x10, 0x85, 0x12, 0xa9,
@@ -99,31 +118,13 @@ fn main() {
         0xb0, 0x01, 0x60, 0xe6, 0x11, 0xa9, 0x06, 0xc5, 0x11, 0xf0, 0x0c, 0x60, 0xc6, 0x10, 0xa5,
         0x10, 0x29, 0x1f, 0xc9, 0x1f, 0xf0, 0x01, 0x60, 0x4c, 0x35, 0x07, 0xa0, 0x00, 0xa5, 0xfe,
         0x91, 0x00, 0x60, 0xa6, 0x03, 0xa9, 0x00, 0x81, 0x10, 0xa2, 0x00, 0xa9, 0x01, 0x81, 0x10,
-        0x60, 0xa2, 0x00, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
+        0x60, 0xa6, 0xff, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
     ];
 
     //load the game
     let mut cpu = CPU::new();
     cpu.load(game_code);
     cpu.reset();
-
-    // init sdl2
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem
-        .window("Snake game", (32.0 * 10.0) as u32, (32.0 * 10.0) as u32)
-        .position_centered()
-        .build()
-        .unwrap();
-
-    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-    canvas.set_scale(10.0, 10.0).unwrap();
-
-    let creator = canvas.texture_creator();
-    let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
-        .unwrap();
 
     // run the game cycle
     let mut screen_state = [0 as u8; 32 * 3 * 32];
